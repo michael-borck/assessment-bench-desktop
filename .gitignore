@@ -1,0 +1,12 @@
+node_modules/
+out/
+release/
+dist/
+.vite/
+*.log
+.DS_Store
+
+# Bundled models can be large; an app made from this template decides whether to
+# commit them, use Git LFS, or download-on-first-run (app.config.cjs `models`).
+resources/models/*
+!resources/models/.gitkeep
