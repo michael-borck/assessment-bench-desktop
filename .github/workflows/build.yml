@@ -1,0 +1,93 @@
+name: Build and Release
+
+# A v* tag builds signed + notarized installers for macOS, Windows, and Linux
+# and publishes them to a GitHub Release.
+#
+# NOTE: unlike document-lens / talk-buddy, this app does NOT bundle a Python
+# backend with PyInstaller. Its `assessment-bench serve` sidecar is installed
+# into an app-local venv on first run (see app.config.cjs), so CI only builds
+# the Electron app — no Python steps here.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # One platform failing must not cancel the others.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: win
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build renderer + main (electron-vite)
+        run: npm run build
+
+      # macOS: code-sign + notarize. electron-builder reads CSC_LINK /
+      # CSC_KEY_PASSWORD for signing; scripts/notarize.js (the afterSign hook)
+      # reads NOTARIZE_APPLE_*. The names are NOTARIZE_APPLE_* (not APPLE_*) so
+      # electron-builder's own buggy auto-notarize wrapper doesn't also fire.
+      - name: Build & publish (macOS)
+        if: matrix.os == 'macos-latest'
+        run: npx electron-builder --mac --config electron-builder.config.js --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARIZE_APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Build & publish (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npx electron-builder --win --config electron-builder.config.js --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & publish (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: npx electron-builder --linux --config electron-builder.config.js --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    # electron-builder --publish always uploads each platform's artifacts to a
+    # DRAFT GitHub Release for this tag. Promote it to published + Latest only
+    # after all three platforms succeed, so a release is never half-built.
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark release published and latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Publishing release $TAG"
+          gh release edit "$TAG" --draft=false --latest --repo "${{ github.repository }}"
