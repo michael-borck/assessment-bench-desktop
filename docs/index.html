@@ -38,6 +38,8 @@
   }
   .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   .note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .dl-all { margin-top: 14px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .btn.small { padding: 7px 14px; font-size: 13px; font-weight: 500; }
   code, pre {
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em;
   }
@@ -91,12 +93,13 @@
   </p>
   <p class="motto">The bench measures; it never marks students.</p>
   <div class="ctas">
-    <a class="btn primary" href="https://github.com/michael-borck/assessment-bench-desktop/releases">
+    <a class="btn primary" id="dl-primary" href="https://github.com/michael-borck/assessment-bench-desktop/releases/latest">
       Download the app · Mac / Windows / Linux
     </a>
     <a class="btn" href="sample-report.html">See a sample report</a>
   </div>
-  <p class="note">Free &amp; open source (MIT). No account. Results stay on your machine.</p>
+  <div class="dl-all" id="dl-all"></div>
+  <p class="note" id="dl-note">Free &amp; open source (MIT). No account. Results stay on your machine.</p>
   <pre class="install"><code><span class="p"># prefer the command line? Same engine, on PyPI:</span>
 pip install assessment-bench</code></pre>
 </header>
@@ -219,5 +222,61 @@ pip install assessment-bench</code></pre>
   </div>
 </footer>
 
+<script>
+/* Smart download buttons: resolve the latest release's assets and promote the
+   visitor's platform, while keeping every platform one click away. Degrades to
+   the plain releases-page link when the API is unreachable. */
+(async () => {
+  const REPO = "michael-borck/assessment-bench-desktop";
+  let rel;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`);
+    if (!r.ok) return;
+    rel = await r.json();
+  } catch { return; }
+  const assets = rel.assets || [];
+  const find = (pred) => assets.find((a) => pred(a.name.toLowerCase()));
+  const platforms = [
+    { key: "mac-arm", label: "Mac · Apple Silicon", asset: find((n) => n.endsWith(".dmg") && n.includes("arm64")) },
+    { key: "mac-x64", label: "Mac · Intel", asset: find((n) => n.endsWith(".dmg") && !n.includes("arm64")) },
+    { key: "win", label: "Windows", asset: find((n) => n.endsWith(".exe")) },
+    { key: "linux-app", label: "Linux · AppImage", asset: find((n) => n.endsWith(".appimage")) },
+    { key: "linux-deb", label: "Linux · .deb", asset: find((n) => n.endsWith(".deb")) },
+  ].filter((p) => p.asset);
+  if (!platforms.length) return;
+
+  const ua = navigator.userAgent;
+  const os = /windows/i.test(ua) ? "win" : /mac/i.test(ua) ? "mac" : /linux/i.test(ua) ? "linux" : "";
+  // Browsers can't tell Apple Silicon from Intel, so on a Mac we promote the
+  // Apple Silicon build (the overwhelming default) and keep Intel beside it.
+  const primary =
+    (os === "mac" && platforms.find((p) => p.key === "mac-arm")) ||
+    (os === "win" && platforms.find((p) => p.key === "win")) ||
+    (os === "linux" && platforms.find((p) => p.key === "linux-app")) ||
+    null;
+
+  const btn = document.getElementById("dl-primary");
+  if (primary) {
+    btn.href = primary.asset.browser_download_url;
+    btn.textContent = `Download for ${primary.label} · ${rel.tag_name}`;
+  }
+  const row = document.getElementById("dl-all");
+  for (const p of platforms) {
+    if (p === primary) continue;
+    const a = document.createElement("a");
+    a.className = "btn small";
+    a.href = p.asset.browser_download_url;
+    a.textContent = p.label;
+    row.appendChild(a);
+  }
+  const all = document.createElement("a");
+  all.className = "btn small";
+  all.href = `https://github.com/${REPO}/releases/latest`;
+  all.textContent = "All downloads →";
+  row.appendChild(all);
+  document.getElementById("dl-note").textContent =
+    `${rel.tag_name} · free & open source (MIT) · no account · results stay on your machine`;
+})();
+</script>
 </body>
 </html>
