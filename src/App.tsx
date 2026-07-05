@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import type { SidecarStatus } from "../global";
 import { BenchResults, type ExperimentResult } from "./components/BenchResults";
 import { EngineStatus } from "./components/EngineStatus";
+import { ExperimentBuilder, type ExperimentConfigPayload } from "./components/ExperimentBuilder";
 import { FirstRunModal } from "./components/FirstRunModal";
 import { OllamaSetupCard } from "./components/OllamaSetupCard";
 
 type RunState = "idle" | "running" | "done" | "failed";
+type Mode = "build" | "yaml";
 
 export function App() {
   const [status, setStatus] = useState<SidecarStatus>({ phase: "not-started", url: "", token: "" });
   const [setupPhase, setSetupPhase] = useState("");
+  const [mode, setMode] = useState<Mode>("build");
   const [yamlPath, setYamlPath] = useState<string | null>(null);
   const [run, setRun] = useState<RunState>("idle");
   const [progress, setProgress] = useState<string[]>([]);
@@ -31,13 +34,12 @@ export function App() {
   const ready = status.phase === "ready";
   const installing = setupPhase === "installing" || status.phase === "installing";
 
-  async function start() {
-    if (!yamlPath) return;
+  async function startWith(request: () => Promise<{ status: number; body: unknown }>) {
     setRun("running");
     setProgress([]);
     setResult(null);
     setError(null);
-    const res = await window.lens.startExperiment(yamlPath);
+    const res = await request();
     if (res.status !== 202) {
       setError(`could not start (HTTP ${res.status}): ${JSON.stringify(res.body)}`);
       setRun("failed");
@@ -61,6 +63,11 @@ export function App() {
     }, 600);
   }
 
+  const startFromYaml = () =>
+    yamlPath && startWith(() => window.lens.startExperiment(yamlPath));
+  const startFromConfig = (config: ExperimentConfigPayload) =>
+    startWith(() => window.lens.startExperimentConfig(config));
+
   const btn = { padding: "6px 12px", borderRadius: 6, border: "1px solid #bbb", cursor: "pointer" };
 
   return (
@@ -72,36 +79,69 @@ export function App() {
 
       {installing && <FirstRunModal />}
 
-      <section style={{ marginTop: 20, display: "grid", gap: 10 }}>
+      <section style={{ marginTop: 20, display: "grid", gap: 12 }}>
         <p style={{ color: "#555", fontSize: 13, margin: 0 }}>
           Run an experiment (LLM vs signals vs hybrid arms over one cohort) and see which
           method agrees with the human marks. The bench measures; it never marks students.
         </p>
-        <div>
-          <button
-            style={btn}
-            onClick={async () =>
-              setYamlPath(await window.lens.pickFile([{ name: "Experiment", extensions: ["yaml", "yml"] }]))
-            }
-          >
-            Choose experiment…
-          </button>
-          <span style={{ marginLeft: 10, color: "#555", fontSize: 13 }}>
-            {yamlPath ?? "no experiment selected"}
-          </span>
-        </div>
-        <div>
-          <button
-            style={{ ...btn, opacity: ready && yamlPath && run !== "running" ? 1 : 0.5 }}
-            disabled={!ready || !yamlPath || run === "running"}
-            onClick={start}
-          >
-            {run === "running" ? "Running…" : "Run experiment"}
-          </button>
-          {!ready && (
-            <span style={{ marginLeft: 10, fontSize: 13, color: "#b8860b" }}>waiting for the engine…</span>
-          )}
-        </div>
+        {!ready && (
+          <p style={{ fontSize: 13, color: "#b8860b", margin: 0 }}>waiting for the engine…</p>
+        )}
+
+        <nav style={{ display: "flex", gap: 6, borderBottom: "1px solid #e0e0e0" }}>
+          {(
+            [
+              ["build", "Build experiment"],
+              ["yaml", "Open YAML (advanced)"],
+            ] as [Mode, string][]
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              style={{
+                ...btn,
+                border: "none",
+                borderBottom: mode === m ? "2px solid #333" : "2px solid transparent",
+                borderRadius: 0,
+                background: "none",
+                fontWeight: mode === m ? 600 : 400,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {mode === "build" ? (
+          <ExperimentBuilder ready={ready} running={run === "running"} onRun={startFromConfig} />
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            <div>
+              <button
+                style={btn}
+                onClick={async () =>
+                  setYamlPath(
+                    await window.lens.pickFile([{ name: "Experiment", extensions: ["yaml", "yml"] }]),
+                  )
+                }
+              >
+                Choose experiment…
+              </button>
+              <span style={{ marginLeft: 10, color: "#555", fontSize: 13 }}>
+                {yamlPath ?? "no experiment selected"}
+              </span>
+            </div>
+            <div>
+              <button
+                style={{ ...btn, opacity: ready && yamlPath && run !== "running" ? 1 : 0.5 }}
+                disabled={!ready || !yamlPath || run === "running"}
+                onClick={startFromYaml}
+              >
+                {run === "running" ? "Running…" : "Run experiment"}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {run === "running" && (

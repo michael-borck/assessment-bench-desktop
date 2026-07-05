@@ -73,6 +73,9 @@ async function boot(): Promise<void> {
     serveCommand: CONFIG.serveCommand,
     healthPath: CONFIG.healthPath,
     defaultPort: CONFIG.defaultPort,
+    // Engine cwd = runtime dir, so keys saved in-app (runtime/.env) are found
+    // by the engine's .env loader.
+    cwd: p.runtimeDir,
   });
   sidecar.on("status", (s) => send("sidecar:status", s));
   sidecar.on("log", (l: string) => send("sidecar:log", l));
@@ -125,6 +128,34 @@ function sidecarRequest(
   });
 }
 
+// Provider -> env var the engine reads (mirrors assessment_bench.providers).
+const PROVIDER_ENV_VARS: Record<string, string> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  grok: "XAI_API_KEY",
+  gemini: "GEMINI_API_KEY",
+};
+
+function envFilePath(): string {
+  return path.join(paths().runtimeDir, ".env");
+}
+
+function readEnvFile(): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    for (const line of fs.readFileSync(envFilePath(), "utf8").split("\n")) {
+      const t = line.trim();
+      if (!t || t.startsWith("#")) continue;
+      const i = t.indexOf("=");
+      if (i > 0) out[t.slice(0, i).trim()] = t.slice(i + 1).trim();
+    }
+  } catch {
+    /* no .env yet */
+  }
+  return out;
+}
+
 function registerIpc(): void {
   ipcMain.handle("sidecar:status", () => sidecar?.status ?? { phase: "not-started" });
   ipcMain.handle("sidecar:request", (_e, method: string, p: string, body?: unknown) =>
@@ -145,6 +176,44 @@ function registerIpc(): void {
   ipcMain.handle("dialog:pickFile", async (_e, filters?: { name: string; extensions: string[] }[]) => {
     const r = await dialog.showOpenDialog(win!, { properties: ["openFile"], filters });
     return r.canceled ? null : r.filePaths[0];
+  });
+
+  // API keys for cloud LLM providers. GUI apps don't inherit shell env vars,
+  // so keys are saved to runtime/.env (chmod 600) where the engine's .env
+  // loader finds them; the engine restarts so a replaced key takes effect.
+  ipcMain.handle("keys:status", () => {
+    const saved = readEnvFile();
+    const status: Record<string, boolean> = {};
+    for (const [provider, envVar] of Object.entries(PROVIDER_ENV_VARS)) {
+      status[provider] = Boolean(saved[envVar] || process.env[envVar]);
+    }
+    return status;
+  });
+  ipcMain.handle("keys:save", async (_e, provider: string, key: string) => {
+    const envVar = PROVIDER_ENV_VARS[provider];
+    if (!envVar) throw new Error(`unknown provider: ${provider}`);
+    const saved = readEnvFile();
+    saved[envVar] = key.trim();
+    const body =
+      Object.entries(saved)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("\n") + "\n";
+    fs.mkdirSync(paths().runtimeDir, { recursive: true });
+    fs.writeFileSync(envFilePath(), body, { mode: 0o600 });
+    if (sidecar) {
+      await sidecar.stop();
+      await sidecar.start();
+    }
+    return true;
+  });
+
+  // Bench-specific: start a run from an in-app-built config (paths already
+  // absolute, straight from the native pickers). Results land next to the
+  // submissions folder.
+  ipcMain.handle("experiment:startConfig", async (_e, cfg: Record<string, unknown>) => {
+    const submissions = String(cfg.submissions ?? "");
+    const out = path.join(path.dirname(submissions), "bench-out");
+    return sidecarRequest("POST", "/experiments", { config: cfg, out });
   });
 
   // Bench-specific: read an experiment YAML, resolve its paths to absolute

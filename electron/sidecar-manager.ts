@@ -20,6 +20,10 @@ export interface SidecarConfig {
   healthPath: string; // e.g. "/health"
   defaultPort: number;
   extraEnv?: NodeJS.ProcessEnv;
+  // Working directory for the engine. The members' .env loader walks cwd
+  // upward, so pointing this at the app runtime dir lets in-app-saved API
+  // keys (runtime/.env) reach the engine.
+  cwd?: string;
 }
 
 const HOST = "127.0.0.1";
@@ -83,6 +87,7 @@ export class SidecarManager extends EventEmitter {
 
     this.setPhase("starting");
     this.proc = spawn(cmd, args, {
+      cwd: this.cfg.cwd,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,

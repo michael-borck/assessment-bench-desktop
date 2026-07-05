@@ -1,4 +1,5 @@
-/** Render an ExperimentResult — agreement with human marks + per-arm reliability.
+/** Render an ExperimentResult — plain-language findings first, then the
+ *  agreement table and per-arm repeatability for people who want the numbers.
  *  The bench MEASURES methods; it does not mark students. */
 
 interface Agreement {
@@ -10,6 +11,7 @@ interface Agreement {
 interface RunStats {
   reliability: number;
   mean: number;
+  std_dev: number;
   n: number;
 }
 interface ArmOutcome {
@@ -29,16 +31,85 @@ function fmt(x: number | null): string {
   return x == null ? "—" : x.toFixed(3);
 }
 
-export function BenchResults({ result }: { result: ExperimentResult }) {
-  // Average reliability per LLM arm (arms that produced repeated runs).
-  const byArm = new Map<string, number[]>();
+function strength(r: number): string {
+  const a = Math.abs(r);
+  if (a >= 0.8) return "strong";
+  if (a >= 0.5) return "moderate";
+  if (a >= 0.3) return "weak";
+  return "little";
+}
+
+interface ArmSummary {
+  arm: string;
+  reliability: number;
+  spread: number; // mean per-submission std-dev, in score points
+}
+
+function summariseArms(result: ExperimentResult): ArmSummary[] {
+  const byArm = new Map<string, RunStats[]>();
   for (const o of result.outcomes) {
-    if (o.stats) byArm.set(o.arm_id, [...(byArm.get(o.arm_id) ?? []), o.stats.reliability]);
+    if (o.stats) byArm.set(o.arm_id, [...(byArm.get(o.arm_id) ?? []), o.stats]);
   }
-  const armReliability = [...byArm.entries()].map(([arm, rs]) => ({
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  return [...byArm.entries()].map(([arm, stats]) => ({
     arm,
-    reliability: rs.reduce((a, b) => a + b, 0) / rs.length,
+    reliability: avg(stats.map((s) => s.reliability)),
+    spread: avg(stats.map((s) => s.std_dev)),
   }));
+}
+
+/** One plain sentence per finding, for readers who don't live in r values. */
+function findings(result: ExperimentResult, arms: ArmSummary[]): string[] {
+  const out: string[] = [];
+  const byMeasure = new Map(result.agreements.map((a) => [a.measure, a]));
+  const armIds = new Set(arms.map((a) => a.arm));
+
+  for (const a of arms) {
+    const agr = byMeasure.get(a.arm);
+    const spread =
+      a.spread > 0
+        ? `varied ±${a.spread.toFixed(1)} points between repeated runs`
+        : "gave the same score every run";
+    if (agr?.pearson != null) {
+      out.push(
+        `“${a.arm}” showed ${strength(agr.pearson)} agreement with your marks ` +
+          `(r=${agr.pearson.toFixed(2)} across ${agr.n} submissions) and ${spread}.`,
+      );
+    } else {
+      out.push(`“${a.arm}” ${spread}.`);
+    }
+  }
+
+  const signals = result.agreements.filter(
+    (a) =>
+      !armIds.has(a.measure) &&
+      a.measure !== "distinctiveness.mean_similarity" &&
+      a.pearson != null,
+  );
+  if (signals.length) {
+    const best = signals.reduce((x, y) =>
+      Math.abs(y.pearson!) > Math.abs(x.pearson!) ? y : x,
+    );
+    out.push(
+      `The single signal that best tracked your marks was ${best.measure} ` +
+        `(r=${best.pearson!.toFixed(2)}) — ${strength(best.pearson!)} agreement without any LLM.`,
+    );
+  }
+
+  const dist = byMeasure.get("distinctiveness.mean_similarity");
+  if (dist?.pearson != null && Math.abs(dist.pearson) >= 0.3) {
+    out.push(
+      dist.pearson > 0
+        ? `Submissions typical of the cohort tended to receive higher marks (similarity vs marks r=${dist.pearson.toFixed(2)}) — worth a look at how the distinctive ones were marked.`
+        : `Distinctive submissions tended to receive higher marks (similarity vs marks r=${dist.pearson.toFixed(2)}).`,
+    );
+  }
+  return out;
+}
+
+export function BenchResults({ result }: { result: ExperimentResult }) {
+  const arms = summariseArms(result);
+  const sentences = findings(result, arms);
 
   return (
     <div>
@@ -49,10 +120,22 @@ export function BenchResults({ result }: { result: ExperimentResult }) {
         The bench measures how each method agrees with the human marks. It never marks students.
       </p>
 
+      {sentences.length > 0 && (
+        <>
+          <h3 style={{ fontSize: 14 }}>What this run found</h3>
+          <ul style={{ fontSize: 13, color: "#333", lineHeight: 1.6 }}>
+            {sentences.map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+          </ul>
+        </>
+      )}
+
       <h3 style={{ fontSize: 14 }}>Agreement with human marks</h3>
       {result.agreements.length === 0 ? (
         <p style={{ color: "#777", fontSize: 13 }}>
-          No agreement stats (add a <code>human_marks</code> CSV to the experiment).
+          No agreement stats — add your own marks (a <code>submission_id,mark</code> CSV) to see
+          which method agrees with your judgement.
         </p>
       ) : (
         <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
@@ -79,13 +162,14 @@ export function BenchResults({ result }: { result: ExperimentResult }) {
         </table>
       )}
 
-      {armReliability.length > 0 && (
+      {arms.length > 0 && (
         <>
-          <h3 style={{ fontSize: 14, marginTop: 16 }}>Arm reliability (repeatability)</h3>
+          <h3 style={{ fontSize: 14, marginTop: 16 }}>Arm repeatability</h3>
           <ul style={{ fontSize: 13, color: "#555" }}>
-            {armReliability.map((a) => (
+            {arms.map((a) => (
               <li key={a.arm}>
-                {a.arm}: {a.reliability.toFixed(2)}
+                {a.arm}: reliability {a.reliability.toFixed(2)}
+                {a.spread > 0 ? ` (scores varied ±${a.spread.toFixed(1)} points)` : " (identical scores every run)"}
               </li>
             ))}
           </ul>

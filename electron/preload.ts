@@ -31,6 +31,13 @@ contextBridge.exposeInMainWorld("lens", {
 
   // Bench: start an experiment from a YAML config path (resolved in main).
   startExperiment: (yamlPath: string) => ipcRenderer.invoke("experiment:start", yamlPath),
+  // Bench: start an experiment from an in-app-built config object.
+  startExperimentConfig: (config: unknown) =>
+    ipcRenderer.invoke("experiment:startConfig", config),
+
+  // API keys for cloud LLM providers (saved to the app runtime, engine restarts)
+  keysStatus: () => ipcRenderer.invoke("keys:status"),
+  keysSave: (provider: string, key: string) => ipcRenderer.invoke("keys:save", provider, key),
 
   // First-run setup
   onSetupPhase: (cb: Cb<string>) => on("setup:phase", cb),

@@ -27,6 +27,9 @@ export interface LensBridge {
   pickDir(): Promise<string | null>;
   pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
   startExperiment(yamlPath: string): Promise<ApiResponse>;
+  startExperimentConfig(config: unknown): Promise<ApiResponse>;
+  keysStatus(): Promise<Record<string, boolean>>;
+  keysSave(provider: string, key: string): Promise<boolean>;
   onSetupPhase(cb: (phase: string) => void): () => void;
   onSetupLog(cb: (line: string) => void): () => void;
   onSetupError(cb: (err: string) => void): () => void;
