@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sample report — Assessment Bench</title>
+<meta name="description" content="A sample Assessment Bench experiment report: plain-language findings, agreement with human marks, and per-arm repeatability.">
+<style>
+  :root {
+    --bg: #fcfcfa; --fg: #1c1c1a; --muted: #5f5f58; --card: #ffffff;
+    --line: #e6e4dd; --accent: #245f4c; --chip: #eef2ef; --warn: #8a6d1f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --fg: #e8e8e4; --muted: #a3a39b; --card: #1d2026;
+      --line: #2c303a; --accent: #4fa183; --chip: #23302b; --warn: #cbb35a;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px; }
+  .back { font-size: 13px; }
+  .back a { color: var(--accent); text-decoration: none; }
+  .banner {
+    margin: 16px 0 24px; padding: 10px 14px; border: 1px dashed var(--line);
+    border-radius: 10px; font-size: 13px; color: var(--muted); background: var(--card);
+  }
+  h1 { font-size: 24px; letter-spacing: -.01em; }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  h2 { font-size: 17px; margin: 28px 0 10px; }
+  ul.findings { padding-left: 20px; display: grid; gap: 8px; }
+  ul.findings li { line-height: 1.55; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 12px; }
+  thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--line); }
+  tbody tr + tr td { border-top: 1px solid var(--line); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tag { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; background: var(--chip); }
+  .footnote { margin-top: 26px; font-size: 13px; color: var(--muted); }
+  .motto { margin-top: 6px; font-size: 13px; color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="back"><a href="index.html">← Assessment Bench</a></p>
+
+  <div class="banner">
+    This is a <strong>sample report</strong> with illustrative data — the exact layout the app
+    shows after a run. There's no web version of the bench (the engine is a local Python
+    process), so this page is the honest preview: what you'd learn about your own cohort.
+  </div>
+
+  <h1>Data-Viz Assignment 2 — 24 submissions</h1>
+  <p class="meta">3 arms · 5 repeated runs per LLM arm · marks out of 100 · compared against the lecturer's marks</p>
+  <p class="motto">The bench measures how each method agrees with the human marks. It never marks students.</p>
+
+  <h2>What this run found</h2>
+  <ul class="findings">
+    <li>“hybrid-claude” showed <strong>strong agreement</strong> with your marks (r=0.87 across 24 submissions) and varied ±2.3 points between repeated runs.</li>
+    <li>“llm-claude” showed <strong>strong agreement</strong> with your marks (r=0.81 across 24 submissions) and varied ±5.6 points between repeated runs.</li>
+    <li>“llm-local” (Ollama, llama3.2) showed <strong>moderate agreement</strong> with your marks (r=0.58 across 24 submissions) and varied ±11.2 points between repeated runs.</li>
+    <li>The single signal that best tracked your marks was <code>document.word_count</code> (r=0.71) — <strong>moderate agreement without any LLM</strong>.</li>
+    <li>Submissions typical of the cohort tended to receive higher marks (similarity vs marks r=0.44) — worth a look at how the distinctive ones were marked.</li>
+  </ul>
+
+  <h2>Agreement with human marks</h2>
+  <table>
+    <thead>
+      <tr><th>measure</th><th class="num">n</th><th class="num">Pearson</th><th class="num">Spearman</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>hybrid-claude <span class="tag">arm</span></td><td class="num">24</td><td class="num">0.874</td><td class="num">0.851</td></tr>
+      <tr><td>llm-claude <span class="tag">arm</span></td><td class="num">24</td><td class="num">0.812</td><td class="num">0.790</td></tr>
+      <tr><td>document.word_count <span class="tag">signal</span></td><td class="num">24</td><td class="num">0.708</td><td class="num">0.731</td></tr>
+      <tr><td>code.cell_count <span class="tag">signal</span></td><td class="num">24</td><td class="num">0.612</td><td class="num">0.640</td></tr>
+      <tr><td>llm-local <span class="tag">arm</span></td><td class="num">24</td><td class="num">0.583</td><td class="num">0.529</td></tr>
+      <tr><td>distinctiveness.mean_similarity</td><td class="num">24</td><td class="num">0.442</td><td class="num">0.418</td></tr>
+      <tr><td>document.reading_grade <span class="tag">signal</span></td><td class="num">24</td><td class="num">0.187</td><td class="num">0.203</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Arm repeatability</h2>
+  <table>
+    <thead>
+      <tr><th>arm</th><th class="num">reliability</th><th>between-run spread</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>hybrid-claude</td><td class="num">0.96</td><td>scores varied ±2.3 points</td></tr>
+      <tr><td>llm-claude</td><td class="num">0.91</td><td>scores varied ±5.6 points</td></tr>
+      <tr><td>llm-local</td><td class="num">0.82</td><td>scores varied ±11.2 points</td></tr>
+      <tr><td>signals</td><td class="num">—</td><td>deterministic (identical every run)</td></tr>
+    </tbody>
+  </table>
+
+  <p class="footnote">
+    Everything above also lands on disk as <code>result.json</code>, <code>runs.csv</code>,
+    <code>signals.csv</code>, <code>distinctiveness.csv</code> and <code>agreement.csv</code>
+    for your own analysis. Reliability is 1 − coefficient&nbsp;of&nbsp;variation over repeated runs;
+    agreement is Pearson/Spearman against the marks you supplied.
+  </p>
+</div>
+</body>
+</html>

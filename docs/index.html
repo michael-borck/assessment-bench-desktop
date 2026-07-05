@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assessment Bench — which marking approach can you trust?</title>
+<meta name="description" content="Benchmark assessment approaches on your own cohort: pure-LLM marking vs deterministic signals vs hybrid, with repeatability and agreement statistics. The bench measures; it never marks.">
+<style>
+  :root {
+    --bg: #fcfcfa; --fg: #1c1c1a; --muted: #5f5f58; --card: #ffffff;
+    --line: #e6e4dd; --accent: #245f4c; --accent-fg: #ffffff; --chip: #eef2ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --fg: #e8e8e4; --muted: #a3a39b; --card: #1d2026;
+      --line: #2c303a; --accent: #4fa183; --accent-fg: #0d1512; --chip: #23302b;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  header.hero { padding: 72px 0 48px; text-align: center; }
+  .kicker {
+    display: inline-block; font-size: 13px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+  }
+  h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; letter-spacing: -.02em; }
+  .sub { max-width: 620px; margin: 18px auto 0; color: var(--muted); font-size: 18px; }
+  .motto { margin-top: 10px; font-weight: 600; }
+  .ctas { margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 11px 22px; border-radius: 10px;
+    text-decoration: none; font-weight: 600; font-size: 15px;
+    border: 1px solid var(--line); color: var(--fg); background: var(--card);
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .note { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  code, pre {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .92em;
+  }
+  pre.install {
+    margin: 26px auto 0; max-width: 460px; background: var(--card);
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px;
+    overflow-x: auto; text-align: left;
+  }
+  pre.install .p { color: var(--muted); user-select: none; }
+  section { padding: 40px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 24px; letter-spacing: -.01em; margin-bottom: 8px; }
+  .lead { color: var(--muted); max-width: 640px; }
+  .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+  }
+  .card h3 { font-size: 16px; margin-bottom: 6px; }
+  .card p { font-size: 14px; color: var(--muted); }
+  .steps { margin-top: 24px; display: grid; gap: 0; counter-reset: step; }
+  .step { display: flex; gap: 16px; padding: 14px 0; }
+  .step + .step { border-top: 1px dashed var(--line); }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    flex: none; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--chip); color: var(--fg); font-weight: 700; font-size: 14px;
+    display: grid; place-items: center; margin-top: 2px;
+  }
+  .step p { font-size: 15px; }
+  .step .hint { font-size: 13px; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .chip {
+    background: var(--chip); border-radius: 999px; padding: 5px 13px;
+    font-size: 13px; color: var(--fg);
+  }
+  .split { display: grid; gap: 24px; grid-template-columns: 1fr 1fr; margin-top: 24px; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  footer { padding: 36px 0 56px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  footer a, section a { color: var(--accent); }
+  .family { margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<header class="hero wrap">
+  <span class="kicker">Assessment Bench · for education researchers</span>
+  <h1>Which marking approach<br>can you actually trust?</h1>
+  <p class="sub">
+    Run one cohort of real student submissions through competing assessment methods —
+    pure-LLM marking, deterministic signals, and a hybrid — then see which one is
+    repeatable and which agrees with <em>your</em> marks.
+  </p>
+  <p class="motto">The bench measures; it never marks students.</p>
+  <div class="ctas">
+    <a class="btn primary" href="https://github.com/michael-borck/assessment-bench-desktop/releases">
+      Download the app · Mac / Windows / Linux
+    </a>
+    <a class="btn" href="sample-report.html">See a sample report</a>
+  </div>
+  <p class="note">Free &amp; open source (MIT). No account. Results stay on your machine.</p>
+  <pre class="install"><code><span class="p"># prefer the command line? Same engine, on PyPI:</span>
+pip install assessment-bench</code></pre>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>Three methods, head to head</h2>
+    <p class="lead">
+      Every experiment compares “arms” on the same rubric and the same cohort, with
+      repeated runs so inconsistency has nowhere to hide.
+    </p>
+    <div class="cards">
+      <div class="card">
+        <h3>🤖 LLM marking</h3>
+        <p>An LLM reads each submission against your rubric and emits a mark — the
+        approach everyone is tempted by, kept honest as the baseline under test.</p>
+      </div>
+      <div class="card">
+        <h3>📐 Signal observations</h3>
+        <p>Deterministic evidence from the lens analyser family via
+        <a href="https://pypi.org/project/assessment-lens/">assessment-lens</a> —
+        the same submission always yields the same observations. No LLM involved.</p>
+      </div>
+      <div class="card">
+        <h3>🔀 Hybrid</h3>
+        <p>LLM marking with the deterministic signals included in the prompt —
+        does grounding the model in measurements make it more trustworthy?</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Built for people who don't live in a terminal</h2>
+    <div class="steps">
+      <div class="step">
+        <div>
+          <p><strong>Point the app at your materials.</strong></p>
+          <p class="hint">A rubric, a folder of submissions (one subfolder per student),
+          and — optionally — a CSV of your own marks to enable agreement statistics.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <p><strong>Pick the methods to compare.</strong></p>
+          <p class="hint">Add arms in a form — no config files. Choose a provider per arm,
+          paste an API key once, set how many repeated runs you want.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <p><strong>Read the findings in plain language.</strong></p>
+          <p class="hint">“LLM marking agreed with your marks at r=0.82 but varied ±3 points
+          between runs.” Full statistics (Pearson, Spearman, reliability) sit one scroll below,
+          and every run lands on disk as JSON + CSV for your own analysis.</p>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:18px">
+      First launch installs the analysis engine automatically (one time, with progress shown).
+      After that it works offline with local models.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="split">
+      <div>
+        <h2>Private by design</h2>
+        <p class="lead">
+          The engine runs locally. Choose <strong>Ollama</strong> for the LLM arms and student
+          work and marks never leave your machine — no cloud, no vendor, no consent-form
+          headaches for your ethics application.
+        </p>
+      </div>
+      <div>
+        <h2>Or any provider</h2>
+        <p class="lead">Compare models against each other — each arm picks its own provider.</p>
+        <div class="chips">
+          <span class="chip">Anthropic Claude</span>
+          <span class="chip">OpenAI</span>
+          <span class="chip">Google Gemini</span>
+          <span class="chip">xAI Grok</span>
+          <span class="chip">OpenRouter</span>
+          <span class="chip">Ollama (local)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Two ways in, one engine</h2>
+    <p class="lead">
+      The desktop app and the <a href="https://pypi.org/project/assessment-bench/">PyPI
+      package</a> are the same product. Use the app for point-and-click experiments;
+      use <code>assessment-bench run experiment.yaml</code> when you want scripted,
+      reproducible pipelines — results are identical.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Part of the <a href="https://github.com/michael-borck/lens-analysers">lens family</a> of
+      open education-analysis tools. Marking students, not methods? You want
+      <a href="https://github.com/michael-borck/assessment-lens">assessment-lens</a> —
+      signal-based observations for educators.
+    </p>
+    <p class="family">
+      <a href="https://github.com/michael-borck/assessment-bench-desktop">Desktop source</a> ·
+      <a href="https://github.com/michael-borck/assessment-bench">Engine source</a> ·
+      <a href="https://pypi.org/project/assessment-bench/">PyPI</a> ·
+      MIT licensed · Made by <a href="https://github.com/michael-borck">Michael Borck</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
