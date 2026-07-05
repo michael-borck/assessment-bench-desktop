@@ -56,7 +56,12 @@ jobs:
       # electron-builder's own buggy auto-notarize wrapper doesn't also fire.
       - name: Build & publish (macOS)
         if: matrix.os == 'macos-latest'
-        run: npx electron-builder --mac --config electron-builder.config.js --publish always
+        # Unset empty signing vars: an unconfigured CSC_LINK secret arrives as
+        # "" and electron-builder treats it as a certificate path ("not a
+        # file"). Without them the build is simply unsigned.
+        run: |
+          if [ -z "$CSC_LINK" ]; then unset CSC_LINK CSC_KEY_PASSWORD; fi
+          npx electron-builder --mac --config electron-builder.config.js --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
