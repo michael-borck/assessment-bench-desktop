@@ -1,7 +1,7 @@
 {
   "name": "assessment-bench-desktop",
-  "version": "0.1.1",
-  "description": "Compare assessment methods on a cohort \u2014 the bench measures, it never marks. Fully local. Desktop app.",
+  "version": "0.2.0",
+  "description": "Compare assessment methods on a cohort — the bench measures, it never marks. Fully local. Desktop app.",
   "author": {
     "name": "Michael Borck",
     "email": "michael@borck.dev"
