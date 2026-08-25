@@ -2,7 +2,6 @@
 export interface SidecarStatus {
   phase: "not-started" | "installing" | "starting" | "ready" | "unreachable" | "crashed";
   url: string;
-  token: string;
 }
 export interface OllamaProgress {
   status: string;

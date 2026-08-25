@@ -1,9 +1,9 @@
 /**
  * Python sidecar manager — spawns the app's `serve` HTTP API from the app-local
- * venv, supervises it, and exposes its localhost URL + per-session token to the
- * renderer. Adapted from document-lens's BackendManager + talk-buddy's embedded
- * server: free-port pick, bearer token, /health poll, phase state machine,
- * bounded auto-restart, graceful->SIGTERM->SIGKILL shutdown.
+ * venv, supervises it, and exposes its localhost URL to the renderer. Adapted
+ * from document-lens's BackendManager + talk-buddy's embedded server: free-port
+ * pick, bearer token, /health poll, phase state machine, bounded auto-restart,
+ * graceful->SIGTERM->SIGKILL shutdown.
  */
 import { ChildProcess, spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -16,9 +16,10 @@ export type Phase = "not-started" | "installing" | "starting" | "ready" | "unrea
 
 export interface SidecarConfig {
   venvDir: string; // app-local venv (created by the first-run installer)
-  serveCommand: string; // e.g. "assessment-lens serve --port {PORT} --host {HOST}"
+  serveCommand: string; // e.g. "assessment-bench serve --port {PORT} --host {HOST}"
   healthPath: string; // e.g. "/health"
   defaultPort: number;
+  authTokenEnv: string; // env var the member reads its bearer token from, e.g. "ASSESSMENT_BENCH_AUTH_TOKEN"
   extraEnv?: NodeJS.ProcessEnv;
   // Working directory for the engine. The members' .env loader walks cwd
   // upward, so pointing this at the app runtime dir lets in-app-saved API
@@ -49,7 +50,7 @@ async function freePort(preferred: number): Promise<number> {
   for (let p = preferred; p < preferred + 50; p++) {
     if (await tryPort(p)) return p;
   }
-  return preferred;
+  throw new Error(`no free port in ${preferred}–${preferred + 49}`);
 }
 
 export class SidecarManager extends EventEmitter {
@@ -67,8 +68,10 @@ export class SidecarManager extends EventEmitter {
   get url(): string {
     return `http://${HOST}:${this.port}`;
   }
-  get status(): { phase: Phase; url: string; token: string } {
-    return { phase: this.phase, url: this.url, token: this.token };
+  // NO token here: this object is relayed to the renderer, and the token must
+  // stay in main (the renderer talks to the sidecar only through main's proxy).
+  get status(): { phase: Phase; url: string } {
+    return { phase: this.phase, url: this.url };
   }
 
   private setPhase(p: Phase): void {
@@ -92,8 +95,9 @@ export class SidecarManager extends EventEmitter {
       env: {
         ...process.env,
         ...this.cfg.extraEnv,
-        // Members read a bearer token from env to gate everything but /health.
-        LENS_AUTH_TOKEN: this.token,
+        // The member gates everything but /health + /manifest on this token
+        // (lens-contract add_auth reads {PREFIX}_AUTH_TOKEN; name from config).
+        [this.cfg.authTokenEnv]: this.token,
       },
     });
     this.proc.stdout?.on("data", (b) => this.emit("log", b.toString()));
@@ -133,11 +137,26 @@ export class SidecarManager extends EventEmitter {
     });
   }
 
+  private monitoring = false;
+
   private monitor(): void {
+    if (this.monitoring) return; // one loop, even across restarts
+    this.monitoring = true;
     const tick = () => {
-      if (this.phase !== "ready") return;
+      // Keep polling through "unreachable" so a recovered sidecar goes green
+      // again; stop only when the process is gone (crashed/stopped restart paths
+      // re-enter via waitReady).
+      if (this.phase !== "ready" && this.phase !== "unreachable") {
+        this.monitoring = false;
+        return;
+      }
       this.health()
-        .catch(() => this.setPhase("unreachable"))
+        .then(() => {
+          if (this.phase === "unreachable") this.setPhase("ready");
+        })
+        .catch(() => {
+          if (this.phase === "ready") this.setPhase("unreachable");
+        })
         .finally(() => setTimeout(tick, 5000));
     };
     setTimeout(tick, 5000);

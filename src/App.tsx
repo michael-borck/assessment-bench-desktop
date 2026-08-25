@@ -10,7 +10,7 @@ type RunState = "idle" | "running" | "done" | "failed";
 type Mode = "build" | "yaml";
 
 export function App() {
-  const [status, setStatus] = useState<SidecarStatus>({ phase: "not-started", url: "", token: "" });
+  const [status, setStatus] = useState<SidecarStatus>({ phase: "not-started", url: "" });
   const [setupPhase, setSetupPhase] = useState("");
   const [mode, setMode] = useState<Mode>("build");
   const [yamlPath, setYamlPath] = useState<string | null>(null);

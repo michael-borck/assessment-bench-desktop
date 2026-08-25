@@ -8,14 +8,19 @@ module.exports = {
 
   // --- Python sidecar (the app's `serve` HTTP API) ---------------------------
   // pip spec installed into the app-local venv on first run. Include the member's
-  // [serve] extra (and whatever analyser/feature extras it needs).
-  sidecarPipSpec: "assessment-bench[serve,analysers,llm]>=0.5.0",
+  // [serve] extra (and whatever analyser/feature extras it needs). Pin exactly
+  // per app release; bump deliberately with the app.
+  sidecarPipSpec: "assessment-bench[serve,analysers,llm]==0.5.1",
   // Console script the installed package exposes; {PORT}/{HOST} are substituted,
   // resolved against the venv's bin/ dir.
   serveCommand: "assessment-bench serve --port {PORT} --host {HOST}",
   // Health endpoint + default port (the sidecar manager probes this).
   healthPath: "/health",
   defaultPort: 8020,
+  // The env var the engine reads its bearer token from — the family standard is
+  // {PREFIX}_AUTH_TOKEN (lens-contract add_auth). Main generates the token per
+  // session and keeps it out of the renderer.
+  authTokenEnv: "ASSESSMENT_BENCH_AUTH_TOKEN",
 
   // --- Models (fully-offline) ------------------------------------------------
   // Either drop files in resources/models/ (bundled in the installer), or list

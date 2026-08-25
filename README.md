@@ -44,5 +44,5 @@ npm run package
 
 Scaffolded from the template and **verified to build** (typecheck + electron-vite).
 Full first-run install + live GUI run need per-OS verification. First-run installs
-`assessment-bench` from PyPI (pinned >=0.5.0: all six LLM providers and friendly
-engine errors).
+`assessment-bench==0.5.1` from PyPI; the sidecar is token-gated per session
+(`ASSESSMENT_BENCH_AUTH_TOKEN`, held in main).

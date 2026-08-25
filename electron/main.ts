@@ -73,6 +73,7 @@ async function boot(): Promise<void> {
     serveCommand: CONFIG.serveCommand,
     healthPath: CONFIG.healthPath,
     defaultPort: CONFIG.defaultPort,
+    authTokenEnv: CONFIG.authTokenEnv,
     // Engine cwd = runtime dir, so keys saved in-app (runtime/.env) are found
     // by the engine's .env loader.
     cwd: p.runtimeDir,
