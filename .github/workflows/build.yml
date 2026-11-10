@@ -11,12 +11,14 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -24,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-15
             platform: mac
           - os: ubuntu-latest
             platform: linux
@@ -55,7 +57,7 @@ jobs:
       # reads NOTARIZE_APPLE_*. The names are NOTARIZE_APPLE_* (not APPLE_*) so
       # electron-builder's own buggy auto-notarize wrapper doesn't also fire.
       - name: Build & publish (macOS)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         # An UNSET CSC_LINK secret arrives as an empty string, which
         # electron-builder treats as a certificate file path and dies on
         # ("not a file"). Unset it and disable identity discovery so the build
@@ -63,14 +65,19 @@ jobs:
         run: |
           if [ -z "$CSC_LINK" ]; then
             unset CSC_LINK CSC_KEY_PASSWORD
+            unset NOTARIZE_APPLE_ID NOTARIZE_APPLE_PASSWORD NOTARIZE_APPLE_TEAM_ID
+            unset APPLE_API_KEY_PATH APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_CONTENT
             export CSC_IDENTITY_AUTO_DISCOVERY=false
             echo "CSC_LINK not set - building unsigned"
           fi
           npx electron-builder --mac --config electron-builder.config.js --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE || secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD || secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
           NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
           NOTARIZE_APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -92,6 +99,7 @@ jobs:
     # DRAFT GitHub Release for this tag. Promote it to published + Latest only
     # after all three platforms succeed, so a release is never half-built.
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Mark release published and latest
@@ -101,3 +109,55 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           echo "Publishing release $TAG"
           gh release edit "$TAG" --draft=false --latest --repo "${{ github.repository }}"
+
+  notarize-check:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare App Store Connect API key
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          if [ -n "$APPLE_API_KEY_CONTENT" ] && [ -n "$APPLE_API_KEY" ]; then
+            mkdir -p "$RUNNER_TEMP/apple-api"
+            KEY_PATH="$RUNNER_TEMP/apple-api/AuthKey_${APPLE_API_KEY}.p8"
+            printf '%s' "$APPLE_API_KEY_CONTENT" | openssl base64 -d -A > "$KEY_PATH"
+            chmod 600 "$KEY_PATH"
+            echo "APPLE_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build, sign and notarize (arm64 zip, no publish)
+        run: npx electron-builder --mac zip --arm64 --config electron-builder.config.js --publish never
+        env:
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE || secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD || secrets.CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          NOTARIZE_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARIZE_APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          NOTARIZE_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Verify notarization
+        run: |
+          APP=$(find release/mac-arm64 -maxdepth 1 -name '*.app' | head -1)
+          test -n "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
