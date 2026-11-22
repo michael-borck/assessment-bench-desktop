@@ -38,12 +38,16 @@ export function isInstalled(p: FirstRunPaths): boolean {
   return fs.existsSync(sentinel(p));
 }
 
-function runScript(p: FirstRunPaths, pipSpec: string, onLog: (s: string) => void): Promise<void> {
+function runScript(
+  p: FirstRunPaths,
+  pipSpecs: string[],
+  onLog: (s: string) => void,
+): Promise<void> {
   const isWin = process.platform === "win32";
   const script = path.join(p.scriptsDir, isWin ? "install.ps1" : "install.sh");
   const [cmd, args] = isWin
-    ? ["powershell", ["-ExecutionPolicy", "Bypass", "-File", script, venvDir(p), pipSpec]]
-    : ["bash", [script, venvDir(p), pipSpec]];
+    ? ["powershell", ["-ExecutionPolicy", "Bypass", "-File", script, venvDir(p), ...pipSpecs]]
+    : ["bash", [script, venvDir(p), ...pipSpecs]];
   return new Promise((resolve, reject) => {
     const proc = spawn(cmd, args as string[], { stdio: ["ignore", "pipe", "pipe"] });
     proc.stdout.on("data", (b) => onLog(b.toString()));
@@ -65,17 +69,33 @@ function sha256(file: string): Promise<string> {
   });
 }
 
-function download(url: string, dest: string, onLog: (s: string) => void): Promise<void> {
+function download(
+  url: string,
+  dest: string,
+  onLog: (s: string) => void,
+  redirects = 0,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    const file = fs.createWriteStream(dest);
     const client = url.startsWith("https") ? https : http;
     client
       .get(url, (res) => {
+        // Model hosts (GitHub releases, Hugging Face) answer with a redirect.
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400) {
+          res.resume();
+          const location = res.headers.location;
+          if (!location || redirects >= 5) {
+            reject(new Error(`too many redirects (or none given) for ${url}`));
+            return;
+          }
+          resolve(download(new URL(location, url).toString(), dest, onLog, redirects + 1));
+          return;
+        }
         if (res.statusCode && res.statusCode >= 400) {
           reject(new Error(`download ${res.statusCode} for ${url}`));
           return;
         }
+        const file = fs.createWriteStream(dest);
         const total = Number(res.headers["content-length"] ?? 0);
         let got = 0;
         let lastPct = -1;
@@ -122,13 +142,13 @@ async function ensureModels(
 
 export async function runFirstRun(
   p: FirstRunPaths,
-  pipSpec: string,
+  pipSpecs: string[],
   models: ModelSpec[],
   onLog: (s: string) => void,
 ): Promise<void> {
   fs.mkdirSync(p.runtimeDir, { recursive: true });
   onLog("[setup] preparing the analysis engine (first run only)…");
-  await runScript(p, pipSpec, onLog);
+  await runScript(p, pipSpecs, onLog);
   await ensureModels(p, models, onLog);
   fs.writeFileSync(sentinel(p), new Date().toISOString());
   onLog("[setup] done — the engine is ready.");

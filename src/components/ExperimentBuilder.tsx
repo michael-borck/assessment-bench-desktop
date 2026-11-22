@@ -37,7 +37,7 @@ const PROVIDERS: Provider[] = ["anthropic", "openai", "ollama", "openrouter", "g
 const DEFAULT_MODELS: Record<Provider, string> = {
   anthropic: "claude-haiku-4-5",
   openai: "gpt-4o-mini",
-  ollama: "llama3.2:3b",
+  ollama: "qwen3.5:2b", // kept in step with app.config.cjs ollama.defaultModel
   openrouter: "openrouter/auto",
   grok: "grok-3-mini",
   gemini: "gemini-2.5-flash",
@@ -59,7 +59,11 @@ const KIND_HELP: Record<ArmKind, string> = {
 };
 
 let armCounter = 0;
-function newArm(kind: ArmKind, provider: Provider = "anthropic"): ArmDraft {
+function newArm(
+  kind: ArmKind,
+  provider: Provider = "anthropic",
+  models: Record<Provider, string> = DEFAULT_MODELS,
+): ArmDraft {
   armCounter += 1;
   const base = kind === "signals" ? "signals" : `${kind}-${provider}`;
   return {
@@ -67,7 +71,7 @@ function newArm(kind: ArmKind, provider: Provider = "anthropic"): ArmDraft {
     kind,
     repetitions: 3,
     provider,
-    model: DEFAULT_MODELS[provider],
+    model: models[provider],
   };
 }
 
@@ -154,17 +158,27 @@ export function ExperimentBuilder({
     newArm("hybrid"),
   ]);
   const [keys, setKeys] = useState<Record<string, boolean>>({});
+  const [ollamaModel, setOllamaModel] = useState(DEFAULT_MODELS.ollama);
   const refreshKeys = () => void window.lens.keysStatus().then(setKeys);
   useEffect(refreshKeys, []);
+  // A new ollama arm defaults to the tier the user picked in setup (or the
+  // curated default) rather than a hard-coded id that may not be pulled.
+  useEffect(() => {
+    void window.lens.config().then((c) => {
+      if (c?.settings?.ollamaModel) setOllamaModel(c.settings.ollamaModel);
+    });
+  }, []);
+  const modelsFor = (): Record<Provider, string> => ({ ...DEFAULT_MODELS, ollama: ollamaModel });
 
   function patchArm(i: number, patch: Partial<ArmDraft>) {
     setArms((prev) =>
       prev.map((a, j) => {
         if (j !== i) return a;
         const next = { ...a, ...patch };
+        const defaults = modelsFor();
         // Switching provider refreshes the model default (unless user edited it away).
         if (patch.provider && (a.model === DEFAULT_MODELS[a.provider] || !a.model)) {
-          next.model = DEFAULT_MODELS[patch.provider];
+          next.model = defaults[patch.provider];
         }
         return next;
       }),

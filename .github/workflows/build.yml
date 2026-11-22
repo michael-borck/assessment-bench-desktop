@@ -19,7 +19,7 @@ jobs:
     with:
       product-name: Assessment Bench
       node-version: '22'
-      preflight-command: npm run typecheck
+      preflight-command: npm run typecheck && npm test
       package-command: npx electron-builder --$PLATFORM --config electron-builder.config.js --publish always
       notarize-check-command: npx electron-builder --mac zip --arm64 --config electron-builder.config.js --publish never
       notarize-check-artifact-root: release

@@ -95,6 +95,11 @@ export class SidecarManager extends EventEmitter {
       env: {
         ...process.env,
         ...this.cfg.extraEnv,
+        // The engine shells out to sibling CLIs (bundle-analyser & co.). Resolve
+        // them from THIS venv first — a stale same-named shim elsewhere on PATH
+        // would otherwise win and the signals arm would analyse nothing.
+        PATH: `${path.dirname(cmd)}${path.delimiter}${process.env.PATH ?? ""}`,
+        VIRTUAL_ENV: this.cfg.venvDir,
         // The member gates everything but /health + /manifest on this token
         // (lens-contract add_auth reads {PREFIX}_AUTH_TOKEN; name from config).
         [this.cfg.authTokenEnv]: this.token,
