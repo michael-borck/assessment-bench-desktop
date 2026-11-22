@@ -20,16 +20,22 @@ a **local model (Ollama)**, so student work and marks never leave the machine.
    per signal, plus each arm's repeatability.
 
 First launch installs the local engine (one-time, with progress); afterwards it
-works offline. For local LLM arms, install [Ollama](https://ollama.com/download).
+works offline. For local LLM arms, the app can install [Ollama](https://ollama.com/download)
+for you (one click) and pull a model sized for the machine — or you can install it
+manually and re-check.
 
 ## How it works
 
 ```
-Electron UI ─IPC─ main ─┬─ reads + resolves the experiment YAML, POSTs to ↓
+Electron UI ─IPC─ main ─┬─ writes auto-analyser.yaml (local CLI routing) beside the sidecar
+                        ├─ reads + resolves the experiment YAML, POSTs to ↓
                         ├─ the assessment-bench `serve` sidecar (local venv)
-                        └─ detects Ollama for local LLM arms
+                        └─ installs/detects Ollama for local LLM arms
 ```
 
+The signals and hybrid arms compose `assessment-lens` → `bundle-analyser` →
+`auto-analyser`, so `main` writes a routing config that points every bundled
+specialist at its local CLI (the analysers' defaults are localhost HTTP services).
 `app.config.cjs` is the one place this app configures itself.
 
 ## Develop
@@ -38,11 +44,13 @@ Electron UI ─IPC─ main ─┬─ reads + resolves the experiment YAML, POSTs
 npm install
 npm run dev
 npm run package
+npm test          # UI unit tests (vitest)
 ```
 
 ## Status
 
 Scaffolded from the template and **verified to build** (typecheck + electron-vite).
 Full first-run install + live GUI run need per-OS verification. First-run installs
-`assessment-bench==0.5.1` from PyPI; the sidecar is token-gated per session
-(`ASSESSMENT_BENCH_AUTH_TOKEN`, held in main).
+`assessment-bench[serve,analysers,llm]==0.5.1` plus the specialist analysers from
+PyPI; the sidecar is token-gated per session (`ASSESSMENT_BENCH_AUTH_TOKEN`, held
+in main).

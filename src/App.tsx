@@ -18,12 +18,14 @@ export function App() {
   const [progress, setProgress] = useState<string[]>([]);
   const [result, setResult] = useState<ExperimentResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [heuristics, setHeuristics] = useState(true);
   const poll = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     window.lens.sidecarStatus().then(setStatus);
     const offStatus = window.lens.onSidecarStatus(setStatus);
     const offPhase = window.lens.onSetupPhase(setSetupPhase);
+    void window.lens.config().then((c) => setHeuristics(c.settings?.heuristics !== false));
     return () => {
       offStatus();
       offPhase();
@@ -168,8 +170,29 @@ export function App() {
       )}
 
       {!result && (
-        <section style={{ marginTop: 24 }}>
+        <section style={{ marginTop: 24, display: "grid", gap: 12 }}>
           <OllamaSetupCard />
+          <label
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              fontSize: 13,
+              color: "#555",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={heuristics}
+              disabled={run === "running"}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setHeuristics(next);
+                void window.lens.setHeuristics(next);
+              }}
+            />
+            Detect AI-chat transcripts &amp; reflective journals (heuristic signal passes)
+          </label>
         </section>
       )}
     </main>

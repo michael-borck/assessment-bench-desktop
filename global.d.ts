@@ -7,9 +7,21 @@ export interface OllamaProgress {
   status: string;
   percent: number | null;
 }
+export interface OllamaModelTier {
+  id: string;
+  label: string;
+  sizeGB: number;
+  note: string;
+}
 export interface AppConfig {
   productName: string;
-  ollama: { recommendedModel: string; recommendedSizeGB: number };
+  ollama: { models: Record<string, OllamaModelTier>; defaultModel: string };
+  system: {
+    platform: NodeJS.Platform;
+    totalMemGB: number;
+    recommendedTier: "small" | "large";
+  };
+  settings: { ollamaModel?: string; heuristics?: boolean };
 }
 
 export interface ApiResponse {
@@ -20,6 +32,7 @@ export interface ApiResponse {
 export interface LensBridge {
   config(): Promise<AppConfig>;
   sidecarStatus(): Promise<SidecarStatus>;
+  restartEngine(): Promise<boolean>;
   onSidecarStatus(cb: (s: SidecarStatus) => void): () => void;
   onSidecarLog(cb: (line: string) => void): () => void;
   api(method: string, path: string, body?: unknown): Promise<ApiResponse>;
@@ -35,6 +48,10 @@ export interface LensBridge {
   ollamaDetect(): Promise<{ running: boolean; models: string[] }>;
   ollamaPull(model: string): Promise<void>;
   onOllamaProgress(cb: (p: OllamaProgress) => void): () => void;
+  ollamaInstall(): Promise<{ ok: boolean; error?: string }>;
+  onOllamaInstallProgress(cb: (p: OllamaProgress) => void): () => void;
+  setOllamaModel(modelId: string): Promise<boolean>;
+  setHeuristics(enabled: boolean): Promise<boolean>;
 }
 
 declare global {
