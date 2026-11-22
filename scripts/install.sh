@@ -4,15 +4,19 @@
 # main process pipes these into the first-run modal. Idempotent-ish: re-running
 # reuses the venv. Exits non-zero on failure so the UI can surface it.
 #
-#   install.sh <venv_dir> <pip_spec>
+#   install.sh <venv_dir> <pip_spec> [<pip_spec>…]
 #
 # Heavy: pulls torch etc. CPU-only torch is forced from the PyTorch CPU index so
 # we never drag CUDA onto a marker's laptop. (On macOS the PyPI wheel is already
 # CPU/MPS; the extra index is harmless.)
 set -euo pipefail
 
-VENV_DIR="${1:?usage: install.sh <venv_dir> <pip_spec>}"
-PIP_SPEC="${2:?usage: install.sh <venv_dir> <pip_spec>}"
+VENV_DIR="${1:?usage: install.sh <venv_dir> <pip_spec> [<pip_spec>…]}"
+shift
+if [ "$#" -lt 1 ]; then
+  echo "usage: install.sh <venv_dir> <pip_spec> [<pip_spec>…]" >&2
+  exit 1
+fi
 
 say() { echo "[install] $*"; }
 
@@ -37,7 +41,7 @@ say "installing CPU-only torch (no CUDA)"
   --index-url https://download.pytorch.org/whl/cpu torch || \
   say "torch CPU index step skipped (will resolve transitively)"
 
-say "installing $PIP_SPEC — this can take several minutes on first run"
-"$VPY" -m pip install --disable-pip-version-check "$PIP_SPEC"
+say "installing: $* — this can take several minutes on first run"
+"$VPY" -m pip install --disable-pip-version-check "$@"
 
 say "OK — sidecar environment ready"

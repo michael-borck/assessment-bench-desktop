@@ -3,15 +3,23 @@
 # installs the Python stack, streaming `[install] …` lines on stdout for the
 # first-run modal. Exits non-zero on failure.
 #
-#   powershell -ExecutionPolicy Bypass -File install.ps1 <venv_dir> <pip_spec>
-$ErrorActionPreference = "Stop"
-
+#   powershell -ExecutionPolicy Bypass -File install.ps1 <venv_dir> <pip_spec> [<pip_spec>…]
+#
+# NOTE: param() must be the first statement in the file (only comments may
+# precede it) — everything else comes after.
 param(
   [Parameter(Mandatory = $true)][string]$VenvDir,
-  [Parameter(Mandatory = $true)][string]$PipSpec
+  [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)][string[]]$PipSpecs
 )
 
+$ErrorActionPreference = "Stop"
+
 function Say($msg) { Write-Output "[install] $msg" }
+
+if (-not $PipSpecs -or $PipSpecs.Count -lt 1) {
+  Write-Error "usage: install.ps1 <venv_dir> <pip_spec> [<pip_spec>…]"
+  exit 1
+}
 
 # Prefer the py launcher, fall back to python on PATH.
 $py = $null
@@ -33,6 +41,7 @@ if (-not (Test-Path $vpy)) {
 
 Say "upgrading pip"
 & $vpy -m pip install --upgrade pip --disable-pip-version-check -q
+if ($LASTEXITCODE -ne 0) { Write-Error "[install] pip upgrade failed"; exit 1 }
 
 Say "installing CPU-only torch (no CUDA)"
 try {
@@ -42,8 +51,8 @@ try {
   Say "torch CPU index step skipped (will resolve transitively)"
 }
 
-Say "installing $PipSpec - this can take several minutes on first run"
-& $vpy -m pip install --disable-pip-version-check $PipSpec
+Say "installing $($PipSpecs -join ', ') - this can take several minutes on first run"
+& $vpy -m pip install --disable-pip-version-check @PipSpecs
 if ($LASTEXITCODE -ne 0) { Write-Error "[install] pip install failed"; exit 1 }
 
 Say "OK - sidecar environment ready"
