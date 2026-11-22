@@ -11,3 +11,6 @@ dist/
 # commit them, use Git LFS, or download-on-first-run (app.config.cjs `models`).
 resources/models/*
 !resources/models/.gitkeep
+
+# Local unsigned installers (not committed)
+release-local/

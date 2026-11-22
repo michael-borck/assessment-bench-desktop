@@ -1,7 +1,7 @@
 {
   "name": "assessment-bench-desktop",
-  "version": "0.2.0",
-  "description": "Compare assessment methods on a cohort — the bench measures, it never marks. Fully local. Desktop app.",
+  "version": "0.3.0",
+  "description": "Compare assessment methods on a cohort \u2014 the bench measures, it never marks. Fully local. Desktop app.",
   "author": {
     "name": "Michael Borck",
     "email": "michael@borck.dev"
@@ -31,7 +31,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
     "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
+    "electron-builder": "^26.17.0",
     "electron-vite": "^2.3.0",
     "jsdom": "^25.0.1",
     "react": "^18.3.1",

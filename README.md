@@ -49,7 +49,9 @@ npm test          # UI unit tests (vitest)
 
 ## Status
 
-Scaffolded from the template and **verified to build** (typecheck + electron-vite).
+**v0.3 — engine shell aligned with the family.** Local auto-analyser routing,
+tiered Ollama install, settings, and a vitest suite; typecheck + electron-vite
+build pass.
 Full first-run install + live GUI run need per-OS verification. First-run installs
 `assessment-bench[serve,analysers,llm]==0.5.1` plus the specialist analysers from
 PyPI; the sidecar is token-gated per session (`ASSESSMENT_BENCH_AUTH_TOKEN`, held
